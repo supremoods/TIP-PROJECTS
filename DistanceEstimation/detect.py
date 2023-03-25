@@ -172,13 +172,12 @@ class Detect:
                                 elif names[int(cls)] == 'cell phone':
                                     self.distance = self.distanceEstimate(focal_phone, self.width_in_rf)
                                 
-                                
                                 if self.distance < 40:
                                     # set colors to red
                                     # detect if the object is in right or left
-                                    if self.distance < 15:
-                                        engine.say('Warning! You are too close to the object')
-                                        engine.runAndWait()
+                                    if self.distance < 4:
+                                        # engine.say('Warning! You are too close to the object')
+                                        # engine.runAndWait()
                                         label = f'{names[int(cls)]} {conf:.2f} {self.distance:.2f} feet'
                                         colors[int(cls)] = [0, 0, 255]
                                         plot_one_box(xyxy, im0, label=label, color=colors[int(cls)], line_thickness=3)
@@ -290,10 +289,9 @@ focal_phone = detect.focalLength(phone)
 
 print(f'focal length of person: {focal_person} | focal length of phone: {focal_phone}')
 
-
-opt.source = 'test.mp4'
+opt.source = '0'
 opt.view_img = True
-opt.classes = [0]
+opt.classes = [0, 67]
 opt.read = False;
 
 detect.detect()
