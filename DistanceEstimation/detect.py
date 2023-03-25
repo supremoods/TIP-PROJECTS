@@ -148,6 +148,7 @@ class Detect:
                     # Rescale boxes from img_size to im0 size
                     detected_classes = []
                     detected_distance = []
+                    detected_area = []
                     det[:, :4] = scale_coords(img.shape[2:], det[:, :4], im0.shape).round()
 
                     # Print results
@@ -167,6 +168,20 @@ class Detect:
                             label = f'{names[int(cls)]} {conf:.2f}'
                             # get the width and height of the bounding box
                             self.width_in_rf = xyxy[2] - xyxy[0]
+                            # Get the x-coordinate of the center of the bounding box
+                            bbox_center = (xyxy[0] + xyxy[2]) / 2
+                            # Get the x-coordinate of the center of the image
+                            image_center = im0.shape[1] / 2
+
+                            # Determine if the bounding box is on the left, center, or right of the image
+                            if bbox_center < image_center - 50:
+                                detected_area.append("left")
+                            elif bbox_center > image_center + 50:
+                                detected_area.append("right")
+                            else:
+                                detected_area.append("center")
+
+                            
                             self.label = f'{names[int(cls)]} {int(cls)}'
                             # print width
                             # print(f'width: {self.width_in_rf} label: {self.label}')
@@ -196,17 +211,15 @@ class Detect:
 
                     # Construct detected_string
                     distance_strings = [f"is too close to you" if distance < 3 else f"{round(float(distance), 1)} feet away" for distance in detected_distance]
-                    detected_string = ", ".join([f"{clazz} {distance_strings[i]}" for i, clazz in enumerate(detected_classes)])
+                    position_strings = ["on your left" if detected_area[i] == 'left' else "in front of you" if detected_area[i] == 'center' else "on your right" for i in range(len(detected_area))]
+                    detected_string = ", ".join([f"{clazz} {distance_strings[i]} {position_strings[i]}" for i, clazz in enumerate(detected_classes)])
 
                     # Construct speech output
                     if len(detected_classes) == 1:
                         speech = f"I detected a {detected_string}."
                     else:
                         speech = f"I detected multiple objects. {detected_string}."
-
                     print(f'Speech: {speech}')
-
-
 
                     # Start a new thread to run the speak_warning function
 
