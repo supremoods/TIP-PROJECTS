@@ -5,8 +5,6 @@ import pyttsx3
 import cv2
 import torch
 import torch.backends.cudnn as cudnn
-import threading
-
 from numpy import random
 
 from models.experimental import attempt_load
@@ -174,18 +172,13 @@ class Detect:
                                 elif names[int(cls)] == 'cell phone':
                                     self.distance = self.distanceEstimate(focal_phone, self.width_in_rf)
                                 
+                                
                                 if self.distance < 40:
                                     # set colors to red
                                     # detect if the object is in right or left
-                                    if self.distance < 4:
-                                        def speak_warning():
-                                            engine.say('Warning! You are too close to the object')
-                                            engine.runAndWait()
-
-                                        # Start a new thread to run the speak_warning function
-                                        t = threading.Thread(target=speak_warning)
-                                        t.start()
-
+                                    if self.distance < 15:
+                                        engine.say('Warning! You are too close to the object')
+                                        engine.runAndWait()
                                         label = f'{names[int(cls)]} {conf:.2f} {self.distance:.2f} feet'
                                         colors[int(cls)] = [0, 0, 255]
                                         plot_one_box(xyxy, im0, label=label, color=colors[int(cls)], line_thickness=3)
@@ -234,13 +227,6 @@ class Detect:
             
 
         print(f'Done. ({time.time() - t0:.3f}s)')
-    
-    def config(self, weights, source, classes, read, view_img):
-        self.opt.weights = weights
-        self.opt.source = source
-        self.opt.classes = classes
-        self.opt.read = read
-        self.opt.view_img = view_img
         
     def parse_opt(self):
         parser = argparse.ArgumentParser()
@@ -276,29 +262,45 @@ class Detect:
                 
 detect = Detect()
 
+opt = detect.opt
 
-detect.config('weights/v5lite-s.pt', 'ref/image14.png', 0, True, False)
+opt.view_img = False
+opt.weights = 'weights/v5lite-s.pt'     
+
+opt.source = 'ref/image14.png'
+opt.classes = 0
+
+opt.read = True;
 
 detect.detect()
-
 person, plabel = detect.width_in_rf, detect.label
 
-detect.config('weights/v5lite-s.pt', 'ref/image4.png', 67, True, False)
-
+opt.source = 'ref/image4.png'
+opt.classes = 67
 detect.detect()
 
 phone, phLabel = detect.width_in_rf, detect.label
 
 print(f'{plabel}: {person} | {phLabel}: {phone}')
 
+
 focal_person = detect.focalLength(person)
 focal_phone = detect.focalLength(phone)
 
+
 print(f'focal length of person: {focal_person} | focal length of phone: {focal_phone}')
 
-detect.config('weights/v5lite-s.pt', '0', [0, 67], False, False)
+
+opt.source = 'test.mp4'
+opt.view_img = True
+opt.classes = [0]
+opt.read = False;
 
 detect.detect()
+
+# opt.source = '0'
+
+# detect.detect()
 
 
 
