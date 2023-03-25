@@ -226,6 +226,13 @@ class Detect:
             
 
         print(f'Done. ({time.time() - t0:.3f}s)')
+    
+    def config(self, weights, source, classes, read, view_img):
+        self.opt.weights = weights
+        self.opt.source = source
+        self.opt.classes = classes
+        self.opt.read = read
+        self.opt.view_img = view_img
         
     def parse_opt(self):
         parser = argparse.ArgumentParser()
@@ -261,44 +268,29 @@ class Detect:
                 
 detect = Detect()
 
-opt = detect.opt
 
-opt.view_img = False
-opt.weights = 'weights/v5lite-s.pt'     
-
-opt.source = 'ref/image14.png'
-opt.classes = 0
-
-opt.read = True;
+detect.config('weights/v5lite-s.pt', 'ref/image14.png', 0, True, False)
 
 detect.detect()
+
 person, plabel = detect.width_in_rf, detect.label
 
-opt.source = 'ref/image4.png'
-opt.classes = 67
+detect.config('weights/v5lite-s.pt', 'ref/image4.png', 67, True, False)
+
 detect.detect()
 
 phone, phLabel = detect.width_in_rf, detect.label
 
 print(f'{plabel}: {person} | {phLabel}: {phone}')
 
-
 focal_person = detect.focalLength(person)
 focal_phone = detect.focalLength(phone)
 
-
 print(f'focal length of person: {focal_person} | focal length of phone: {focal_phone}')
 
-opt.source = '0'
-opt.view_img = True
-opt.classes = [0, 67]
-opt.read = False;
+detect.config('weights/v5lite-s.pt', '0', [0, 67], False, False)
 
 detect.detect()
-
-# opt.source = '0'
-
-# detect.detect()
 
 
 
