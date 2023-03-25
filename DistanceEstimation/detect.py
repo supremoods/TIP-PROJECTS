@@ -5,6 +5,8 @@ import pyttsx3
 import cv2
 import torch
 import torch.backends.cudnn as cudnn
+import threading
+
 from numpy import random
 
 from models.experimental import attempt_load
@@ -176,8 +178,14 @@ class Detect:
                                     # set colors to red
                                     # detect if the object is in right or left
                                     if self.distance < 4:
-                                        # engine.say('Warning! You are too close to the object')
-                                        # engine.runAndWait()
+                                        def speak_warning():
+                                            engine.say('Warning! You are too close to the object')
+                                            engine.runAndWait()
+
+                                        # Start a new thread to run the speak_warning function
+                                        t = threading.Thread(target=speak_warning)
+                                        t.start()
+
                                         label = f'{names[int(cls)]} {conf:.2f} {self.distance:.2f} feet'
                                         colors[int(cls)] = [0, 0, 255]
                                         plot_one_box(xyxy, im0, label=label, color=colors[int(cls)], line_thickness=3)
