@@ -46,6 +46,7 @@ class Detect:
        self.CONFIDENCE_THRESHOLD = 0.4
        self.NMS_THRESHOLD = 0.3
        self.distance = 0
+       engine.stop()
     
     def focalLength(self, width_in_rf):
         focal_length = (width_in_rf * self.KNOWN_DISTANCE) / self.PERSON_WIDTH
@@ -143,6 +144,9 @@ class Detect:
                 gn = torch.tensor(im0.shape)[[1, 0, 1, 0]]  # normalization gain whwh
                 if len(det):
                     # Rescale boxes from img_size to im0 size
+                    detected_classes = []
+                    detected_distance = []
+                    detected_area = []
                     det[:, :4] = scale_coords(img.shape[2:], det[:, :4], im0.shape).round()
 
                     # Print results
@@ -162,11 +166,26 @@ class Detect:
                             label = f'{names[int(cls)]} {conf:.2f}'
                             # get the width and height of the bounding box
                             self.width_in_rf = xyxy[2] - xyxy[0]
+                            # Get the x-coordinate of the center of the bounding box
+                            bbox_center = (xyxy[0] + xyxy[2]) / 2
+                            # Get the x-coordinate of the center of the image
+                            image_center = im0.shape[1] / 2
+
+                            # Determine if the bounding box is on the left, center, or right of the image
+                            if bbox_center < image_center - 50:
+                                detected_area.append("left")
+                            elif bbox_center > image_center + 50:
+                                detected_area.append("right")
+                            else:
+                                detected_area.append("center")
+
+                            
                             self.label = f'{names[int(cls)]} {int(cls)}'
                             # print width
-                            print(f'width: {self.width_in_rf} label: {self.label}')
+                            # print(f'width: {self.width_in_rf} label: {self.label}')
                             
                             if (self.opt.read == False):
+                                
                                 if names[int(cls)] == 'person':
                                     self.distance = self.distanceEstimate(focal_person, self.width_in_rf)
                                 elif names[int(cls)] == 'cell phone':
@@ -175,23 +194,39 @@ class Detect:
                                 
                                 if self.distance < 40:
                                     # set colors to red
-                                    # detect if the object is in right or left
-                                    if self.distance < 15:
-                                        engine.say('Warning! You are too close to the object')
-                                        engine.runAndWait()
+                                    if self.distance < 3:
+                                        detected_classes.append(names[int(cls)])
+                                        detected_distance.append(self.distance)
                                         label = f'{names[int(cls)]} {conf:.2f} {self.distance:.2f} feet'
                                         colors[int(cls)] = [0, 0, 255]
-                                        plot_one_box(xyxy, im0, label=label, color=colors[int(cls)], line_thickness=3)
+                                        plot_one_box(xyxy, im0, label=label, color=colors[int(cls)], line_thickness=1)
                                     else:
+                                        detected_classes.append(names[int(cls)])
+                                        detected_distance.append(self.distance)
                                         label = f'{names[int(cls)]} {conf:.2f} {self.distance:.2f} feet'
                                         colors[int(cls)] = [0, 255, 0]
-                                        plot_one_box(xyxy, im0, label=label, color=colors[int(cls)], line_thickness=3)
-                          
-                            #   plot_one_box(xyxy, im0, label=label, color=colors[int(cls)], line_thickness=3)
-                            
+                                        plot_one_box(xyxy, im0, label=label, color=colors[int(cls)], line_thickness=1)
+                                
 
+                    # Construct detected_string
+                    distance_strings = [f"is too close to you" if distance < 3 else f"{round(float(distance), 1)} feet away" for distance in detected_distance]
+                    position_strings = ["on your left" if detected_area[i] == 'left' else "in front of you" if detected_area[i] == 'center' else "on your right" for i in range(len(detected_area))]
+                    detected_string = ", ".join([f"{clazz} {distance_strings[i]} {position_strings[i]}" for i, clazz in enumerate(detected_classes)])
+
+                    # Construct speech output
+                    if len(detected_classes) == 1:
+                        speech = f"I detected a {detected_string}."
+                    else:
+                        speech = f"I detected multiple objects. {detected_string}."
+                    print(f'Speech: {speech}')
+
+                    # Start a new thread to run the speak_warning function
+
+                    tts_thread = threading.Thread(target=self.speak_warning, args=(speech,))
+                    tts_thread.start()
+                          
                 # Print time (inference + NMS)
-                print(f'{s}Done. ({t2 - t1:.3f}s)')
+                # print(f'{s}Done. ({t2 - t1:.3f}s)')``
 
                 # Stream results
                 if view_img:
@@ -200,6 +235,7 @@ class Detect:
                     
                 key= cv2.waitKey(1)
                 if key == ord('q'):
+                    engine.stop()
                     break
 
                 # Save results (image with detections)
@@ -225,8 +261,20 @@ class Detect:
             s = f"\n{len(list(save_dir.glob('labels/*.txt')))} labels saved to {save_dir / 'labels'}" if save_txt else ''
             print(f"Results saved to {save_dir}{s}")
             
+        print(f'Done. ({time.time() - t0:.3f}s)')   
 
-        print(f'Done. ({time.time() - t0:.3f}s)')
+    def speak_warning(self, str):
+        if not engine._inLoop:
+            engine.say(str)
+            engine.runAndWait()
+            
+    
+    def config(self, weights, source, classes, read, view_img):
+        self.opt.weights = weights
+        self.opt.source = source
+        self.opt.classes = classes
+        self.opt.read = read
+        self.opt.view_img = view_img
         
     def parse_opt(self):
         parser = argparse.ArgumentParser()
@@ -297,18 +345,3 @@ opt.classes = [0]
 opt.read = False;
 
 detect.detect()
-
-# opt.source = '0'
-
-# detect.detect()
-
-
-
-
-
-
-
-            
-
-
-    
