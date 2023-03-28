@@ -67,7 +67,95 @@ def haptics():
         "left_active": left_active
     }
 
-    return jsonify(response)
+    return jfrom flask import Flask, request,jsonify
+2
+from detect import inference
+3
+​
+4
+app = Flask(__name__)
+5
+​
+6
+​
+7
+​
+8
+​
+9
+print ("hello")
+10
+inference()
+11
+​
+12
+​
+13
+@app.route('/')
+14
+def hello():
+15
+    return 'Hello, World!'
+16
+​
+17
+# @app.route('/video_feed')
+18
+# def detect_image():    
+19
+    
+20
+    
+21
+    # detect = Detect()
+22
+​
+23
+​
+24
+    # detect.config('weights/v5lite-s.pt', 'ref/50.jpg', 0, True, False)
+25
+​
+26
+    # detect.detect()
+27
+​
+28
+    # person, plabel = detect.width_in_rf, detect.label
+29
+​
+30
+    # detect.config('weights/v5lite-s.pt', 'ref/dog50.jpg', 17, True, False)
+31
+​
+32
+    # detect.detect()
+33
+​
+34
+    # phone, phLabel = detect.width_in_rf, detect.label
+35
+​
+36
+    # print(f'{plabel}: {person} | {phLabel}: {phone}')
+37
+​
+38
+    # focal_person = detect.focalLength(person)
+39
+    # focal_phone = detect.focalLength(phone)
+40
+​
+41
+    # print(f'focal length of person: {focal_person} | focal length of phone: {focal_phone}')
+42
+​
+43
+    # detect.config('weights/v5lite-c.pt', 'ref/dog50.jpg', None, False, False)
+44
+​
+45
+    # detect.detect()sonify(response)
 
 
 if __name__ == '__main__':
