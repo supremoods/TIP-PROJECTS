@@ -20,7 +20,8 @@ from utils.torch_utils import select_device, load_classifier, time_synchronized
 engine = pyttsx3.init()
 voice = engine.getProperty('voices') #get the available voices
 # eng.setProperty('voice', voice[0].id) #set the voice to index 0 for male voice
-engine.setProperty('voice', voice[1].id) #changing voice to index 1 for female voice
+engine.setProperty('voice', voice[0].id) #changing voice to index 1 for female voice
+
 
 class Detect:
     def __init__(self):
@@ -44,7 +45,7 @@ class Detect:
                                      read = False)
        self.width_in_rf = 0
        self.label = ''
-       self.KNOWN_DISTANCE = 24.0
+       self.KNOWN_DISTANCE = 25.0
        self.PERSON_WIDTH = 40
        self.MOBILE_WIDTH = 3.0
        self.CONFIDENCE_THRESHOLD = 0.4
@@ -65,7 +66,7 @@ class Detect:
         distance = (focal_length * self.KNOWN_DISTANCE) / width_in_rf
         
         # convert inches to feet
-        # distance = distance / 12
+        distance = distance / 100
         
         return distance
     
@@ -200,47 +201,44 @@ class Detect:
                                 
                                 if names[int(cls)] == 'person':
                                     self.distance = self.distanceEstimate(focal_person, self.width_in_rf)
-                                elif names[int(cls)] == 'cell phone':
+                                elif names[int(cls)] == 'dog':
                                     self.distance = self.distanceEstimate(focal_phone, self.width_in_rf)
                                 
-                                if self.distance < 180:
+                                if self.distance < 4:
                                     # set colors to red
-                                    if self.distance < 80:
+                                    if self.distance < 2:
                                         detected_classes.append(names[int(cls)])
                                         detected_distance.append(self.distance)
-                                        # print(detected_area[i])
-                                        self.haptics = ''.join(detected_area[i])
-                                        print("SELF", self.haptics)
-                                        # response = request.get('http://127.0.0.1:5000/' + self.haptics + '/')
-                                        # print(response.content)
-                                        label = f'{names[int(cls)]} {conf:.2f} {self.distance:.2f} cm'
+                                        label = f'{names[int(cls)]} {conf:.2f} {self.distance:.2f} meters'
                                         colors[int(cls)] = [0, 0, 255]
                                         plot_one_box(xyxy, im0, label=label, color=colors[int(cls)], line_thickness=1)
                                     else:
-                                        detected_classes.append(names[int(cls)])
-                                        detected_distance.append(self.distance)
-                                        label = f'{names[int(cls)]} {conf:.2f} {self.distance:.2f} cm'
+                                      #  detected_classes.append(names[int(cls)])
+                                        # detected_distance.append(self.distance)
+                                        label = f'{names[int(cls)]} {conf:.2f} {self.distance:.2f} meters'
                                         colors[int(cls)] = [0, 255, 0]
                                         plot_one_box(xyxy, im0, label=label, color=colors[int(cls)], line_thickness=1)
                                 
 
                     # Construct detected_string
-                    distance_strings = [f"is too close to you" if distance < 3 else f"{round(float(distance), 1)} feet away" for distance in detected_distance]
-                    position_strings = ["on your left" if detected_area[i] == 'left' else "in front of you" if detected_area[i] == 'center' else "on your right" for i in range(len(detected_area))]
+                    distance_strings = [f"too close to you" if distance < 3 else f"{round(float(distance), 1)} meters away" for distance in detected_distance]
+                    position_strings = ["on your left side" if detected_area[i] == 'left' else "ahead of you" if detected_area[i] == 'center' else "on your right side" for i in range(len(detected_area))]
 
                     detected_string = ", ".join([f"{clazz} {distance_strings[i]} {position_strings[i]}" for i, clazz in enumerate(detected_classes)])
                     
                     # Construct speech output
                     if len(detected_classes) == 1:
-                        speech = f"I detected a {detected_string}."
+                        speech = f"{detected_string}."
                     else:
-                        speech = f"I detected multiple objects. {detected_string}."
+                        speech = f"{detected_string}."
+                  #      speech = ""
                     print(f'Speech: {speech}')
 
                     # Start a new thread to run the speak_warning function
-
-                    # tts_thread = threading.Thread(target=self.speak_warning, args=(speech,))
-                    # tts_thread.start()
+                    
+                    if len(detected_distance) > 0:
+                        tts_thread = threading.Thread(target=self.speak_warning, args=(speech,))
+                        tts_thread.start()
                           
                 # Print time (inference + NMS)
                 # print(f'{s}Done. ({t2 - t1:.3f}s)')``
@@ -334,13 +332,13 @@ def inference():
     global focal_person, focal_phone               
     detect = Detect()
 
-    detect.config('weights/v5lite-s.pt', 'ref/50.jpg', 0, True, False)
+    detect.config('weights/v5lite-g.pt', 'ref/50.jpg', 0, True, False)
 
     detect.detect()
 
     person, plabel = detect.width_in_rf, detect.label
 
-    detect.config('weights/v5lite-s.pt', 'ref/dog50.jpg', 17, True, False)
+    detect.config('weights/v5lite-g.pt', 'ref/dog50.jpg', 16, True, False)
 
     detect.detect()
 
@@ -353,7 +351,7 @@ def inference():
 
     print(f'focal length of person: {focal_person} | focal length of phone: {focal_phone}')
 
-    detect.config('weights/v5lite-s.pt', '0', None, False, False)
+    detect.config('weights/v5lite-s.pt', 'http://192.168.100.224:8080/video', [0,17], False, False)
 
     detect.detect()
     print(detect.get_haptics())
