@@ -1,183 +1,216 @@
-#include <Servo.h>          //Servo motor library. This is standard library
-#include <NewPing.h>        //Ultrasonic sensor function library. You must install this library
+const unsigned long SPEED_TIMEOUT = 500000;       // Time used to determine wheel is not spinning
+const unsigned int UPDATE_TIME = 500;             // Time used to output serial data
+const unsigned int BUFFER_SIZE = 16;              // Serial receive buffer size
+const double BAUD_RATE = 115200;                  // Serial port baud rate
+const double WHEEL_DIAMETER_IN = 6.5;            // Motor wheel diamater (inches)
+const double WHEEL_CIRCUMFERENCE_IN = 22.25;     // Motor wheel circumference (inches)
+const double WHEEL_DIAMETER_CM = 16.5;           // Motor wheel diamater (centimeters)
+const double WHEEL_CIRCUMFERENCE_CM = 56.5;      // Motor wheel circumference (centimeters)
 
-//our L298N control pins
-const int LeftMotorForward = 7;
-const int LeftMotorBackward = 6;
-const int RightMotorForward = 4;
-const int RightMotorBackward = 5;
+// Pin Declarations
+const int PIN_DIR = 2;      // Motor direction signal
+const int PIN_BRAKE = 3;    // Motor brake signal (active low)
+const int PIN_PWM = 9;      // PWM motor speed control
+const int PIN_SPEED = 12;   // SC Speed Pulse Output from RioRand board
 
-//sensor pins
-#define trig_pin A1 //analog input 1
-#define echo_pin A2 //analog input 2
+// Variables used in ReadFromSerial function
+String _command = "";       // Command received in Serial read command
+int _data = 0;              // Data received in Serial read command
 
-#define maximum_distance 250
-boolean goesForward = false;
-int distance = 150;
+// Variables used in ReadSpeed function
+double _freq;               // Frequency of the signal on the speed pin
+double _rpm;                // Wheel speed in revolutions per minute
+double _mph;                // Wheel speed in miles per hour
+double _kph;                // Wheel speed in kilometers per hour
 
-NewPing sonar(trig_pin, echo_pin, maximum_distance); //sensor function
-Servo servo_motor; //our servo name
-
-
-void setup(){
-
-  Serial.begin(9600);
-
-  pinMode(RightMotorForward, OUTPUT);
-  pinMode(LeftMotorForward, OUTPUT);
-  pinMode(LeftMotorBackward, OUTPUT);
-  pinMode(RightMotorBackward, OUTPUT);
-  
-  servo_motor.attach(10); //our servo pin
-
-  servo_motor.write(115);
-  delay(2000);
-  distance = readPing();
-  delay(100);
-  distance = readPing();
-  delay(100);
-  distance = readPing();
-  delay(100);
-  distance = readPing();
-  delay(100);
-}
-
-void loop(){
-
-  int distanceRight = 0;
-  int distanceLeft = 0;
-  delay(50);
-
-  if (distance <= 20){
-    moveStop();
-    delay(300);
-    moveBackward();
-    delay(400);
-    moveStop();
-    delay(300);
-    distanceRight = lookRight();
-    delay(300);
-    distanceLeft = lookLeft();
-    delay(300);
-
-    if (distance >= distanceLeft){
-      turnRight();
-      moveStop();
-    }
-    else{
-      turnLeft();
-      moveStop();
-    }
-  }
-  else{
-    moveForward(); 
-  }
-    distance = readPing();
-}
-
-int lookRight(){  
-  servo_motor.write(50);
-  delay(500);
-  int distance = readPing();
-  delay(100);
-  servo_motor.write(115);
-  return distance;
-}
-
-int lookLeft(){
-  servo_motor.write(170);
-  delay(500);
-  int distance = readPing();
-  delay(100);
-  servo_motor.write(115);
-  return distance;
-  delay(100);
-}
-
-int readPing(){
-  delay(70);
-  int cm = sonar.ping_cm();
-  if (cm==0){
-    cm=250;
-  }
-  return cm;
-}
-
-void moveStop(){
-  
-  digitalWrite(RightMotorForward, LOW);
-  digitalWrite(LeftMotorForward, LOW);
-  digitalWrite(RightMotorBackward, LOW);
-  digitalWrite(LeftMotorBackward, LOW);
-}
-
-void moveForward(){
-
-  if(!goesForward){
-
-    Serial.println("==moveForward==");
-
-    goesForward=true;
+// This is ran only once at startup
+void setup() 
+{
+    // Set pin directions
+    pinMode(PIN_SPEED, INPUT);
+    pinMode(PIN_PWM, OUTPUT);
+    pinMode(PIN_BRAKE, OUTPUT);
+    pinMode(PIN_DIR, OUTPUT);
     
-    digitalWrite(LeftMotorForward, HIGH);
-    digitalWrite(RightMotorForward, HIGH);
-  
-    digitalWrite(LeftMotorBackward, LOW);
-    digitalWrite(RightMotorBackward, LOW); 
-  }
+    // Set initial pin states
+    digitalWrite(PIN_BRAKE, false);
+    digitalWrite(PIN_DIR, false);
+    analogWrite(PIN_PWM, 0);
+    
+    // Initialize serial port
+    Serial.begin(BAUD_RATE);
+    Serial.println("---- Program Started ----");
 }
 
-void moveBackward(){
+// This is the main program loop that runs repeatedly
+void loop() 
+{
+    // Read serial data and set dataReceived to true if command is ready to be processed
+    bool dataReceived = ReadFromSerial();
 
-  goesForward=false;
+    // Process the received command if available
+    if (dataReceived == true)
+        ProcessCommand(_command, _data);
 
-  Serial.println("==moveBackward==");
+    // Read the speed from input pin (sets _rpm and _mph)
+    ReadSpeed();
 
-  digitalWrite(LeftMotorBackward, HIGH);
-  digitalWrite(RightMotorBackward, HIGH);
-  
-  digitalWrite(LeftMotorForward, LOW);
-  digitalWrite(RightMotorForward, LOW);
-  
+    // Outputs the speed data to the serial port 
+    WriteToSerial(); 
 }
 
-void turnRight(){
+// Receives string data from the serial port
+// Data should be in the format <command>,<data>
+// Data should be terminated with a carriage return
+// Function returns true if termination character received 
+bool ReadFromSerial()
+{    
+    // Local variables   
+    static String cmdBuffer;        // Stores the received command
+    static String dataBuffer;       // Stores the received data
+    static bool isCommand = true;   // Flag to store received bytes in command or data buffer
+    byte recByte;                   // Byte received from the serial port
+    
+    // Check if any new data is available, if not exit
+    if (Serial.available() == false)
+      return false;
+    
+    // Read single byte from serial port
+    recByte = Serial.read();
+    
+    // Check if byte is termination character (carriage return)
+    if (recByte == '\r')
+    {
+        // Save buffers to global variables
+        cmdBuffer.toUpperCase();
+        _command = cmdBuffer;
+        _data = dataBuffer.toInt();
+      
+        // Write what was received back to the serial port
+        Serial.print("Received: "); 
+        Serial.print(_command); 
+        Serial.print(",");
+        Serial.println(_data);
+      
+        // Clear local variables
+        cmdBuffer = "";
+        dataBuffer = "";
+        isCommand = true;
+      
+        return true;
+    }
+    
+    // Check if byte is a comma which separates the command from the data
+    if ((char)recByte == ',')
+    {
+        isCommand = false;  // Next byte will be a data byte
+        return false;
+    }
 
-  Serial.println("==turnRight==");
-
-  digitalWrite(LeftMotorForward, HIGH);
-  digitalWrite(RightMotorBackward, HIGH);
-  
-  digitalWrite(LeftMotorBackward, LOW);
-  digitalWrite(RightMotorForward, LOW);
-  
-  delay(500);
-  
-  digitalWrite(LeftMotorForward, HIGH);
-  digitalWrite(RightMotorForward, HIGH);
-  
-  digitalWrite(LeftMotorBackward, LOW);
-  digitalWrite(RightMotorBackward, LOW);
- 
-  
-  
+    // Save data to one of the receive buffers
+    if (isCommand)
+        cmdBuffer += (char)recByte;
+    else
+        dataBuffer += (char)recByte;
+    
+    return false;
 }
 
-void turnLeft(){
+// Processes the command and data, sends result to serial port
+void ProcessCommand(String command, int data)
+{  
+    // Process SPEED command
+    if (command == "PWM")
+    {
+      Serial.print("Setting speed:  ");
+      Serial.println(data);
+      analogWrite(PIN_PWM, data);
+    }
+        
+    // Process BRAKE command
+    if (command == "BRAKE")
+    {
+      Serial.print("Setting brake:  ");
+      Serial.println(data);
+      digitalWrite(PIN_BRAKE, data);
+    }
 
-  Serial.println("==turnLeft==");
+    // Process DIR command
+    if (command == "DIR")
+    {
+      Serial.print("Setting direction:  ");
+      Serial.println(data);
+      digitalWrite(PIN_DIR, data);
+    }
+}
 
-  digitalWrite(LeftMotorBackward, HIGH);
-  digitalWrite(RightMotorForward, HIGH);
-  
-  digitalWrite(LeftMotorForward, LOW);
-  digitalWrite(RightMotorBackward, LOW);
+// Reads the speed from the input pin and calculates RPM and MPH
+// Monitors the state of the input pin and measures the time (µs) between pin transitions
+void ReadSpeed()
+{
+    static bool lastState = false;    // Saves the last state of the speed pin
+    static unsigned long last_uS;     // The time (µs) when the speed pin changes
+    static unsigned long timeout_uS;  // Timer used to determine the wheel is not spinning
 
-  delay(500);
+    // Read the current state of the input pin
+    bool state = digitalRead(PIN_SPEED);
+
+    // Check if the pin has changed state
+    if (state != lastState)
+    {
+      // Calculate how long has passed since last transition
+      unsigned long current_uS = micros();
+      unsigned long elapsed_uS = current_uS - last_uS;
+
+      // Calculate the frequency of the input signal
+      double period_uS = elapsed_uS * 2.0;
+      _freq = (1 / period_uS) * 1E6;
+
+      // Calculate the RPM
+      _rpm = _freq / 45 * 60;
+
+      // If RPM is excessively high then ignore it.
+      if (_rpm > 5000) _rpm = 0;
+
+      // Calculate the miles per hour (mph) based on the wheel diameter or circumference
+      //_mph = (WHEEL_DIAMETER_IN * PI * _rpm * 60) / 63360;
+      _mph = (WHEEL_CIRCUMFERENCE_IN * _rpm * 60) / 63360; 
   
-  digitalWrite(LeftMotorForward, HIGH);
-  digitalWrite(RightMotorForward, HIGH);
-  
-  digitalWrite(LeftMotorBackward, LOW);
-  digitalWrite(RightMotorBackward, LOW);
+      // Calculate the miles per hour (kph) based on the wheel diameter or circumference
+      //_kph = (WHEEL_DIAMETER_CM * PI * _rpm * 60) / 1000;
+      _kph = (WHEEL_CIRCUMFERENCE_CM * _rpm * 60) / 100000; 
+
+      // Save the last state and next timeout time
+      last_uS = current_uS;
+      timeout_uS = last_uS + SPEED_TIMEOUT;
+      lastState = state;
+    }
+    // If too long has passed then the wheel has probably stopped
+    else if (micros() > timeout_uS)
+    {
+        _freq = 0;
+        _rpm = 0;
+        _mph = 0;
+        _kph = 0;
+        last_uS = micros();
+    }
+}
+
+// Writes the RPM and MPH to the serial port at a set interval
+void WriteToSerial()
+{
+    // Local variables
+    static unsigned long updateTime;
+    
+    if (millis() > updateTime)
+    {
+        // Write data to the serial port
+        Serial.print((String)"Freq:" + _freq + " ");
+        Serial.print((String)"RPM:" + _rpm + " ");
+        Serial.print((String)"MPH:" + _mph + " ");
+        Serial.println((String)"KPH:" + _kph + " ");
+
+        // Calculate next update time
+        updateTime = millis() + UPDATE_TIME;
+    }
 }
