@@ -38,7 +38,8 @@ class Detect:
        self.label = ''
        self.KNOWN_DISTANCE = 25.0
        self.PERSON_WIDTH = 40
-       self.MOBILE_WIDTH = 3.0
+       self.DOG_WIDTH = 25.0
+       self.CAT_WIDTH = 25.0
        self.CONFIDENCE_THRESHOLD = 0.4
        self.NMS_THRESHOLD = 0.3
        self.distance = 0
@@ -180,7 +181,9 @@ class Detect:
                                 if names[int(cls)] == 'person':
                                     self.distance = self.distanceEstimate(focal_person, self.width_in_rf)
                                 elif names[int(cls)] == 'dog':
-                                    self.distance = self.distanceEstimate(focal_phone, self.width_in_rf)
+                                    self.distance = self.distanceEstimate(focal_dog, self.width_in_rf)
+                                elif names[int(cls)] == 'cat':
+                                    self.distance = self.distanceEstimate(focal_cat, self.width_in_rf)
                                 
                                 if self.distance < 4:
                                     # set colors to red
@@ -238,7 +241,18 @@ class Detect:
         self.opt.classes = classes
         self.opt.read = read
         self.opt.view_img = view_img
+
+    def read_focal(self, model, src):
+
+        self.config(model, src, 0, True, False)
+
+        self.detect()
+
+        focal_length = self.focalLength(self.width_in_rf)
+
+        return self.width_in_rf, self.label, focal_length
         
+               
     def parse_opt(self):
         parser = argparse.ArgumentParser()
         parser.add_argument('--weights', nargs='+', type=str, default='weights/v5lite-s.pt', help='model.pt path(s)')
@@ -274,28 +288,18 @@ class Detect:
 
 
 focal_person = None
-focal_phone = None  
+focal_dog = None
+focal_cat = None  
 
 detect = Detect()
 
-detect.config('weights/v5lite-g.pt', 'ref/50.jpg', 0, True, False)
+detect.read_focal('weights/wcm-model.pt', 'ref/person.jpg')
+detect.read_focal('weights/wcm-model.pt', 'ref/dog.jpg')
+# detect.read_focal('weights/wcm-model.pt', 'ref/cat.jpg')
 
-detect.detect()
-
-person, plabel = detect.width_in_rf, detect.label
-
-detect.config('weights/v5lite-g.pt', 'ref/dog50.jpg', 16, True, False)
-
-detect.detect()
-
-phone, phLabel = detect.width_in_rf, detect.label
-
-print(f'{plabel}: {person} | {phLabel}: {phone}')
-
-focal_person = detect.focalLength(person)
-focal_phone = detect.focalLength(phone)
-
-print(f'focal length of person: {focal_person} | focal length of phone: {focal_phone}')
+print(f'focal length of person: {focal_person}') 
+print(f'focal length of dog: {focal_dog}')
+print(f'focal length of dog: {focal_cat}')
 
 # detect.config('weights/wcm-model.pt', '0', None, False, False)
 # detect.config('weights/wcm-model.pt', 'rtsp://admin:wcm_2000@192.168.1.64:554/Streaming/Channels/2', None, False, False)
