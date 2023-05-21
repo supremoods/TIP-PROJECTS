@@ -13,18 +13,19 @@ from utils.general import check_img_size, check_requirements, check_imshow, non_
 from utils.plots import plot_one_box
 from utils.torch_utils import select_device, load_classifier, time_synchronized
 
+import os
 
 class Detect:
     def __init__(self):
-       self.opt = argparse.Namespace(agnostic_nms=False, 
+        self.opt = argparse.Namespace(agnostic_nms=False, 
                                      augment=False, 
                                      classes=None, 
                                      conf_thres=0.25, 
                                      device='',
-                                     exist_ok=False, 
+                                     exist_ok=True, 
                                      img_size=640, 
                                      iou_thres=0.45, 
-                                     name='test/exp', 
+                                     name='test_res_distance/Person', 
                                      nosave=False,
                                      project='', 
                                      save_conf=False, 
@@ -34,25 +35,27 @@ class Detect:
                                      view_img=False, 
                                      weights='', 
                                      read = False)
-       self.width_in_rf = 0
-       self.label = ''
-       self.KNOWN_DISTANCE = 25.0
-       self.PERSON_WIDTH = 40
-       self.DOG_WIDTH = 25.0
-       self.CAT_WIDTH = 25.0
-       self.CONFIDENCE_THRESHOLD = 0.4
-       self.NMS_THRESHOLD = 0.3
-       self.distance = 0
+        self.width_in_rf = 0
+        self.label = ''
+        self.KNOWN_DISTANCE = 25.0
+        self.PERSON_WIDTH = 40
+        self.DOG_WIDTH = 55
+        self.CAT_WIDTH = 30
+        self.BED_WIDTH = 100
+        self.CHAIR_WIDTH = 55
+        self.SOFA_WIDTH = 100
+        self.TABLE_WIDTH = 100
+        self.CONFIDENCE_THRESHOLD = 0.4
+        self.NMS_THRESHOLD = 0.3
+        self.distance = 0
     
-    def focalLength(self, width_in_rf):
-        focal_length = (width_in_rf * self.KNOWN_DISTANCE) / self.PERSON_WIDTH
-      
+    def focalLength(self, width_in_rf, width):
+        focal_length = (width_in_rf * self.KNOWN_DISTANCE) / width
         return focal_length
-    
+
     def distanceEstimate(self, focal_length, width_in_rf):
         distance = (focal_length * self.KNOWN_DISTANCE) / width_in_rf
         
-        # convert inches to feet
         distance = distance / 100
         
         return distance
@@ -167,39 +170,63 @@ class Detect:
 
                             # Determine if the bounding box is on the left, center, or right of the image
                             if bbox_center < image_center - 50:
-                                positionInFrame = "left"
                                 detected_area.append("left")
                             elif bbox_center > image_center + 50:
-                                positionInFrame = "right"
                                 detected_area.append("right")
                             else:
-                                positionInFrame = "center"
                                 detected_area.append("center")
                             self.label = f'{names[int(cls)]} {int(cls)}'
                             
                             if (self.opt.read == False):
                                 if names[int(cls)] == 'person':
+                                    print(f"Person: {int(cls)}")
                                     self.distance = self.distanceEstimate(focal_person, self.width_in_rf)
                                 elif names[int(cls)] == 'dog':
+                                    print(f"Dog: {int(cls)}")
                                     self.distance = self.distanceEstimate(focal_dog, self.width_in_rf)
                                 elif names[int(cls)] == 'cat':
+                                    print(f"Cat: {int(cls)}")
                                     self.distance = self.distanceEstimate(focal_cat, self.width_in_rf)
+                                elif names[int(cls)] == 'bed':
+                                    print(f"Bed: {int(cls)}")
+                                    self.distance = self.distanceEstimate(focal_bed, self.width_in_rf)
+                                elif names[int(cls)] == 'chair':
+                                    print(f"Chair: {int(cls)}")
+                                    self.distance = self.distanceEstimate(focal_chair, self.width_in_rf)
+                                elif names[int(cls)] == 'dining table':
+                                    print(f"Table: {int(cls)}")
+                                    self.distance = self.distanceEstimate(focal_table, self.width_in_rf)
+                                elif names[int(cls)] == 'couch':
+                                    print(f"Sofa: {int(cls)}")
+                                    self.distance = self.distanceEstimate(focal_sofa, self.width_in_rf)
                                 
+                                print (f"Distance: {self.distance} meters")
                                 if self.distance < 4:
                                     # set colors to red
                                     if self.distance < 2:
                                         detected_classes.append(names[int(cls)])
                                         detected_distance.append(self.distance)
-                                        label = f'{names[int(cls)]} {conf:.2f} {self.distance:.2f} meters'
+                                        if(names[int(cls)] == 'couch'):
+                                            label = f'sofa {conf:.2f} {self.distance:.2f} meters'
+                                        elif(names[int(cls)] == 'dining table'):
+                                            label = f'table {conf:.2f} {self.distance:.2f} meters'
+                                        else:
+                                            label = f'{names[int(cls)]} {conf:.2f} {self.distance:.2f} meters'
+                                        
                                         colors[int(cls)] = [0, 0, 255]
                                         plot_one_box(xyxy, im0, label=label, color=colors[int(cls)], line_thickness=1)
                                     else:
-                                        label = f'{names[int(cls)]} {conf:.2f} {self.distance:.2f} meters'
+                                        if(names[int(cls)] == 'couch'):
+                                            label = f'sofa {conf:.2f} {self.distance:.2f} meters'
+                                        elif(names[int(cls)] == 'dining table'):
+                                            label = f'table {conf:.2f} {self.distance:.2f} meters'
+                                        else:
+                                            label = f'{names[int(cls)]} {conf:.2f} {self.distance:.2f} meters'
                                         colors[int(cls)] = [255, 0, 0]
                                         plot_one_box(xyxy, im0, label=label, color=colors[int(cls)], line_thickness=1)
                                 
                 # Print time (inference + NMS)
-                # print(f'{s}Done. ({t2 - t1:.3f}s)')``
+                print(f'{s}Done. ({t2 - t1:.3f}s)')
 
                 # Stream results
                 if view_img:
@@ -242,15 +269,15 @@ class Detect:
         self.opt.read = read
         self.opt.view_img = view_img
 
-    def read_focal(self, model, src):
-
-        self.config(model, src, 0, True, False)
+    def read_focal(self, model, src, classes, width):
+   
+        self.config(model, src, classes, True, False)
 
         self.detect()
 
-        focal_length = self.focalLength(self.width_in_rf)
+        focal_length = self.focalLength(self.width_in_rf, width)
 
-        return self.width_in_rf, self.label, focal_length
+        return self.width_in_rf, focal_length
         
                
     def parse_opt(self):
@@ -287,21 +314,41 @@ class Detect:
 
 
 
-focal_person = None
-focal_dog = None
-focal_cat = None  
+focal_person = 0
+focal_dog = 0
+focal_cat = 0
+focal_bed = 0
+focal_chair = 0
+focal_table = 0
+focal_sofa = 0
 
-detect = Detect()
+obs = Detect()
 
-detect.read_focal('weights/wcm-model.pt', 'ref/person.jpg')
-detect.read_focal('weights/wcm-model.pt', 'ref/dog.jpg')
-# detect.read_focal('weights/wcm-model.pt', 'ref/cat.jpg')
+person_width_px, focal_person = obs.read_focal('weights/v5lite-g.pt', 'ref/person.jpg', 0, obs.PERSON_WIDTH)
+dog_width_px, focal_dog = obs.read_focal('weights/v5lite-g.pt', 'ref/dog.jpg', 16, obs.DOG_WIDTH)
+cat_width_px, focal_cat = obs.read_focal('weights/v5lite-g.pt', 'ref/cat.jpg', 15, obs.CAT_WIDTH)
+bed_width_px, focal_bed = obs.read_focal('weights/v5lite-g.pt', 'ref/Bed.jpeg', 59, obs.BED_WIDTH)
+chair_width_px, focal_chair = obs.read_focal('weights/v5lite-g.pt', 'ref/chair.jpg', 56, obs.CHAIR_WIDTH)
+table_width_px, focal_table = obs.read_focal('weights/v5lite-g.pt', 'ref/table.jpg', 60, obs.TABLE_WIDTH)
+sofa_width_px, focal_sofa = obs.read_focal('weights/v5lite-g.pt', 'ref/sofa.jpg', 57, obs.SOFA_WIDTH)
 
-print(f'focal length of person: {focal_person}') 
-print(f'focal length of dog: {focal_dog}')
-print(f'focal length of dog: {focal_cat}')
+print(f'Person focal length: {focal_person}')
+print(f'Dog focal length: {focal_dog}')
 
-# detect.config('weights/wcm-model.pt', '0', None, False, False)
-# detect.config('weights/wcm-model.pt', 'rtsp://admin:wcm_2000@192.168.1.64:554/Streaming/Channels/2', None, False, False)
+print(f'Person width: {person_width_px}')
+print(f'Dog width: {dog_width_px}')
 
-detect.detect()
+print(f'Cat focal length: {focal_cat}')
+print(f'Cat width: {cat_width_px}')
+
+print(f'bed focal length: {focal_bed}')
+print(f'bed width: {bed_width_px}')
+
+print(f'chair focal length: {focal_chair}')
+print(f'chair width: {chair_width_px}')
+
+obs.config('weights/v5lite-s.pt', '0', [0, 16, 15, 59, 56, 60, 57], False, False)
+obs.detect()
+    
+
+

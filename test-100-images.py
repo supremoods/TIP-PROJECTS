@@ -24,7 +24,7 @@ class Detect:
                                      exist_ok=True, 
                                      img_size=640, 
                                      iou_thres=0.45, 
-                                     name='test-100-images-output2/', 
+                                     name='test_res/Bed', 
                                      nosave=False,
                                      project='', 
                                      save_conf=False, 
@@ -58,6 +58,7 @@ class Detect:
     
     
     def detect(self, save_img=False):
+        global counter
         source, weights, view_img, save_txt, imgsz = self.opt.source, self.opt.weights, self.opt.view_img, self.opt.save_txt, self.opt.img_size
         save_img = not self.opt.nosave and not source.endswith('.txt')  # save inference images
         webcam = source.isnumeric() or source.endswith('.txt') or source.lower().startswith(
@@ -136,6 +137,7 @@ class Detect:
                 
                 gn = torch.tensor(im0.shape)[[1, 0, 1, 0]]  # normalization gain whwh
                 if len(det):
+                    counter += 1
                     # Rescale boxes from img_size to im0 size
                     detected_classes = []
                     detected_distance = []
@@ -145,7 +147,7 @@ class Detect:
                     # Print results
                     for c in det[:, -1].unique():
                         n = (det[:, -1] == c).sum()  # detections per class
-                        s += f"{n} {names[int(c)]}{'s' * (n > 1)}, "  # add to string
+                        s += f"{n} {int(c)} {names[int(c)]}{'s' * (n > 1)}, "  # add to string
 
                     # Write results
                     for *xyxy, conf, cls in reversed(det):
@@ -167,12 +169,20 @@ class Detect:
                             self.label = f'{names[int(cls)]} {int(cls)}'
                             
                             if (self.opt.read == False):
-                                label = f'{names[int(cls)]} {conf:.2f}'
+                                if(names[int(cls)] == 'couch'):
+                                   label = f'sofa {conf:.2f}'
+                                elif(names[int(cls)] == 'dining table'):
+                                    label = f'table {conf:.2f}'
+                                else:
+                                    label = f'{names[int(cls)]} {conf:.2f}'
                                 plot_one_box(xyxy, im0, label=label, color=colors[int(cls)], line_thickness=2)
+                                # add the counter
+                    
+                            
                             
                                 
                 # Print time (inference + NMS)
-                # print(f'{s}Done. ({t2 - t1:.3f}s)')``
+                print(f'{s}Done. ({t2 - t1:.3f}s)')
 
                 # Stream results
                 if view_img:
@@ -272,11 +282,23 @@ detect = Detect()
 # focal_phone = detect.focalLength(phone)
 
 import os, gc
-input_folder = "test-100-images-input3/"
 
+className = "Bed"
+
+input_folder = "test_detection/Bed"
+
+
+counter = 0
 image_files = [os.path.join(input_folder, f) for f in os.listdir(input_folder) if f.endswith('.jpg') or f.endswith('.jpeg') or f.endswith('.png')]
 
 for image_file in image_files:
-    detect.config('weights/v5lite-g.pt', image_file, [0,15,16,56,57,59,60], False, False)
+    detect.config('weights/v5lite-g.pt', image_file, [59], False, False)
     detect.detect()
     torch.cuda.empty_cache()
+
+success = counter
+fail = image_files.__len__() - success
+percentage = (success/image_files.__len__())*100
+
+print("Bed Detection")
+print(f'Success: {success} | Fail: {fail} | Percentage: {percentage}%')
