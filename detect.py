@@ -12,8 +12,13 @@ from utils.general import check_img_size, check_requirements, check_imshow, non_
     scale_coords, xyxy2xywh, strip_optimizer, set_logging, increment_path
 from utils.plots import plot_one_box
 from utils.torch_utils import select_device, load_classifier, time_synchronized
+import threading
 
 import os
+import imageio
+
+
+from app import WcmApp
 
 class Detect:
     def __init__(self):
@@ -48,7 +53,11 @@ class Detect:
         self.CONFIDENCE_THRESHOLD = 0.4
         self.NMS_THRESHOLD = 0.3
         self.distance = 0
-    
+        
+    # def start_wcmApp(self, image):
+    #     wcmApp = WcmApp(image)
+    #     wcmApp.start()
+        
     def focalLength(self, width_in_rf, width):
         focal_length = (width_in_rf * self.KNOWN_DISTANCE) / width
         return focal_length
@@ -62,6 +71,8 @@ class Detect:
     
     
     def detect(self, save_img=False):
+
+        
         source, weights, view_img, save_txt, imgsz = self.opt.source, self.opt.weights, self.opt.view_img, self.opt.save_txt, self.opt.img_size
         save_img = not self.opt.nosave and not source.endswith('.txt')  # save inference images
         webcam = source.isnumeric() or source.endswith('.txt') or source.lower().startswith(
@@ -228,17 +239,29 @@ class Detect:
                 # Print time (inference + NMS)
                 print(f'{s}Done. ({t2 - t1:.3f}s)')
 
-                # Stream results
-                if view_img:
-                    cv2.imshow(str(p), im0)
-                    cv2.waitKey(1)  # 1 millisecond
+                # # Stream results
+                # if view_img:
+                #     if(self.opt.read == False):
+                #         cv2.imshow(str(p), im0)
+                #     cv2.waitKey(1)  # 1 millisecond
                     
-                key= cv2.waitKey(1)
-                if key == ord('q'):
-                    break
+                # key= cv2.waitKey(1)
+                # if key == ord('q'):
+                #     break
 
                 # Save results (image with detections)
                 if save_img:
+                    if (self.opt.read == False):
+                        wcmApp.update_video_feed(im0)
+                    else:
+                        # Read the GIF image using imageio
+                        gif_path = 'loader.gif'
+                        gif = imageio.mimread(gif_path)
+
+                        for frame in gif:
+                            wcmApp.update_video_feed(frame)
+                            time.sleep(0.1)
+                    
                     if dataset.mode == 'image':
                         cv2.imwrite(save_path, im0)
                     else:  # 'video' or 'stream'
@@ -314,6 +337,14 @@ class Detect:
 
 
 
+def start_wcmApp():
+    wcmApp.start()
+
+wcmApp = WcmApp()
+
+wcm_thread = threading.Thread(target=start_wcmApp)  # Remove the parentheses after start_wcmApp
+wcm_thread.start()
+
 focal_person = 0
 focal_dog = 0
 focal_cat = 0
@@ -348,6 +379,7 @@ print(f'chair focal length: {focal_chair}')
 print(f'chair width: {chair_width_px}')
 
 obs.config('weights/v5lite-s.pt', '0', [0, 16, 15, 59, 56, 60, 57], False, False)
+
 obs.detect()
     
 

@@ -3,7 +3,7 @@ import cv2 as cv
 from PIL import ImageTk, Image
 
 class CamWidget(tk.Frame):
-    def __init__(self, img, parent, width=480, height=360, *args, **kwargs):
+    def __init__(self, parent, width=480, height=360, *args, **kwargs):
         super().__init__(parent, *args, **kwargs)
         self.width = width
         self.height = height
