@@ -29,8 +29,12 @@ root.title("Tech Mobility")
 main_frame = ctk.CTkFrame(root, fg_color="red", bg_color="red")
 main_frame.pack(side="right",fill='both', padx=28, pady=28, expand=True)
 
-# SIDEBAR WIDGET - START
+# WEBCAM WIDGET
+webcam_widget = CamWidget(main_frame, width=373, height=321)
+webcam_widget.pack()
 
+
+# SIDEBAR WIDGET - START
 # Creating the sidebar
 sidebar = ctk.CTkFrame(root, width=140, height=root.winfo_screenheight(), bg_color="#3A3A3A")
 sidebar.pack(side='left', fill='y')
